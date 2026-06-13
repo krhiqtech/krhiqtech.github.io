@@ -17,7 +17,8 @@
   --warn:      #e8950c;
   --danger:    #e23b3b;
   --info:      #2f7ef0;
-  --shadow:    0 1px 2px rgba(20,30,60,.04), 0 4px 16px rgba(20,30,60,.05);
+  --shadow:    0 1px 2px rgba(20,30,60,.04), 0 6px 22px rgba(20,30,60,.06);
+  --r:         18px;   /* 기본 카드 라운드 */
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -29,7 +30,10 @@ html, body {
   color: var(--ink);
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;   /* 페이지 가로 스크롤 차단 */
+  overflow-x: clip;     /* 최신 브라우저: sticky 유지하며 가로 차단 */
 }
+* { min-width: 0; }     /* flex/grid 자식이 내용 때문에 넘치는 것 방지 */
 
 .app { min-height: 100vh; display: flex; flex-direction: column; }
 
@@ -96,7 +100,7 @@ html, body {
 /* ---------------- 카드/그리드 ---------------- */
 .card {
   background: var(--panel); border: 1px solid var(--line);
-  border-radius: 14px; box-shadow: var(--shadow);
+  border-radius: var(--r); box-shadow: var(--shadow);
 }
 .card .card-h {
   display: flex; align-items: center; justify-content: space-between;
@@ -166,13 +170,13 @@ table.tbl td.num, table.tbl th.num { text-align: right; font-variant-numeric: ta
 
 .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .search {
-  border: 1px solid var(--line); background: #fff; border-radius: 9px;
-  padding: 9px 13px; font-size: 13px; width: 280px; outline: none;
+  border: 1px solid var(--line); background: #fff; border-radius: 12px;
+  padding: 9px 14px; font-size: 13px; width: 280px; outline: none;
 }
 .search:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-l); }
 .btn {
   border: 1px solid var(--line); background: #fff; color: var(--ink);
-  padding: 9px 15px; border-radius: 9px; font-weight: 700; font-size: 13px; cursor: pointer;
+  padding: 9px 16px; border-radius: 12px; font-weight: 700; font-size: 13px; cursor: pointer;
 }
 .btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
 .btn.ghost { background: #f4f6fa; }
@@ -202,22 +206,28 @@ table.tbl td.num, table.tbl th.num { text-align: right; font-variant-numeric: ta
   .date-chip { display: none; }           /* 공간 확보 */
   .nav-toggle { display: inline-grid; place-items: center; }
 
-  /* 탭 → 햄버거 드롭다운 (가로 스크롤 제거) */
+  /* 탭 → 떠있는 둥근 카드형 메뉴 (앱 느낌) */
   .tabs {
-    display: none; position: absolute; left: 0; right: 0; top: 100%;
-    flex-direction: column; background: #fff; border-bottom: 1px solid var(--line);
-    box-shadow: 0 14px 28px rgba(20,30,60,.14); z-index: 50; max-height: 72vh; overflow-y: auto; padding: 6px 0;
+    display: none; position: absolute; left: 10px; right: 10px; top: calc(100% + 6px);
+    flex-direction: column; background: #fff; border: 1px solid var(--line);
+    border-radius: 18px; box-shadow: 0 16px 38px rgba(20,30,60,.18);
+    z-index: 50; max-height: 74vh; overflow-y: auto; padding: 8px;
   }
   .tabs.open { display: flex; }
-  .tabs a { padding: 14px 18px; font-size: 14px; border-bottom: 1px solid var(--line-2); border-left: 3px solid transparent; }
-  .tabs a.active { border-bottom-color: var(--line-2); border-left-color: var(--primary); background: #f5f8ff; }
+  .tabs a { padding: 13px 14px; font-size: 14px; border-radius: 12px; border-bottom: none; }
+  .tabs a.active { background: #eef3ff; color: var(--primary); }
 
-  .content { padding: 16px 14px 40px; }
+  .content { padding: 16px 14px 40px; overflow-x: hidden; }
   .page-head h1 { font-size: 18px; }
-  /* 넓은 표는 가로 스크롤 */
-  .card > table.tbl, .quote-items table, .stmt { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .stmt table { min-width: 680px; }
-  table.tbl { min-width: 560px; }
+  /* 가로 스크롤 방지: 넓은 표는 '카드 안에서만' 좌우 스크롤 (페이지는 안 밀림) */
+  .card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .quote-items, .stmt { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table.tbl { min-width: 520px; }
+  .stmt table { min-width: 640px; }
+  .card-h { flex-wrap: wrap; gap: 8px; }
+  .search { width: 100%; }
+  .stmt-toolbar { flex-direction: column; align-items: stretch; }
+  .stmt-toolbar select { min-width: 0; width: 100%; }
   .summary-box { width: 100%; }
   .party-wrap { grid-template-columns: 1fr; }
   .statline { gap: 16px; }
@@ -309,7 +319,7 @@ svg text { font-family: inherit; }
   display: flex; align-items: flex-start; justify-content: center;
   z-index: 100; padding: 64px 16px; overflow: auto; animation: fade .15s ease;
 }
-.modal { background: #fff; border-radius: 16px; width: 440px; max-width: 100%;
+.modal { background: #fff; border-radius: 20px; width: 440px; max-width: 100%;
   box-shadow: 0 20px 60px rgba(20,30,60,.28); overflow: hidden; }
 .modal.wide { width: 660px; }
 .modal-h { display: flex; align-items: center; justify-content: space-between;
@@ -321,8 +331,8 @@ svg text { font-family: inherit; }
 .modal-b { padding: 20px 22px; }
 .fld { margin-bottom: 14px; }
 .fld label { display: block; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); margin-bottom: 6px; }
-.fld select, .fld input { width: 100%; border: 1px solid var(--line); border-radius: 9px;
-  padding: 10px 12px; font-size: 13.5px; outline: none; font-family: inherit; background: #fff; }
+.fld select, .fld input { width: 100%; border: 1px solid var(--line); border-radius: 12px;
+  padding: 11px 13px; font-size: 13.5px; outline: none; font-family: inherit; background: #fff; }
 .fld select:focus, .fld input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-l); }
 .modal-note { font-size: 12.5px; color: var(--ink-soft); background: #f7faff; border: 1px solid #e1ebff;
   border-radius: 9px; padding: 10px 12px; margin: 6px 0 0; line-height: 1.6; }
