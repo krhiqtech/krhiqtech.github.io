@@ -90,6 +90,9 @@ const LABEL_SETS = {
   quote:      ["검토중", "발송", "수주확정", "반려"],
   cs:         ["접수", "대응중", "완료"],
   receivable: ["예정", "미수", "연체", "완료"],
+  equip:      ["정상", "점검필요", "노후"],
+  verdict:    ["합격", "불합격", "재검사"],
+  grade:      ["A", "B", "C", "신규"],
 };
 const LABEL_COLOR = {
   "대기": "c-gray", "절단": "c-purple", "압착": "c-warn", "조립": "c-info", "검사": "c-purple", "완료": "c-ok",
@@ -97,12 +100,15 @@ const LABEL_COLOR = {
   "검토중": "c-warn", "발송": "c-info", "수주확정": "c-ok", "반려": "c-danger",
   "접수": "c-info", "대응중": "c-warn",
   "예정": "c-info", "미수": "c-warn", "연체": "c-danger",
+  "정상": "c-ok", "점검필요": "c-warn", "노후": "c-danger",
+  "합격": "c-ok", "불합격": "c-danger", "재검사": "c-warn",
+  "A": "c-ok", "B": "c-info", "C": "c-gray", "신규": "c-gray",
 };
 
 // 라벨 드롭다운 (클릭하여 변경)
 function labelSelect(setKey, coll, keyField, keyVal, field) {
   const rec = DB[coll].find(r => String(r[keyField]) === String(keyVal));
-  const cur = rec ? rec[field] : LABEL_SETS[setKey][0];
+  const cur = (rec && rec[field] != null) ? rec[field] : LABEL_SETS[setKey][0];
   const cls = LABEL_COLOR[cur] || "c-gray";
   return `<select class="lblsel ${cls}" title="클릭하여 변경"
     data-coll="${coll}" data-keyfield="${keyField}" data-key="${keyVal}" data-field="${field}">
@@ -327,6 +333,8 @@ function bindEvents() {
     if (e.target.id === "modalWrap") { closeModal(); return; }
     const st = e.target.closest("[data-subtab]");
     if (st) { SUB[st.dataset.group] = st.dataset.subtab; rerender(); return; }
+    const ty = e.target.closest("[data-taxyear]");
+    if (ty) { TAX_YEAR = ty.dataset.taxyear; rerender(); return; }
     const b = e.target.closest("[data-action]"); if (!b) return;
     if (b.dataset.action === "ar-settle") { settleAR(b.dataset.no); return; }
     if (b.dataset.action === "tax-toggle") {
@@ -345,6 +353,8 @@ function bindEvents() {
     else if (f.classList && f.classList.contains("fmt-money")) f.value = fmtMoney(f.value);
     const ss = e.target.closest("#stmtSel");
     if (ss) { STMT_SOURCE = ss.value; STMT_DOC = null; rerender(); return; }
+    const tm = e.target.closest("#taxMonth");
+    if (tm) { TAX_MONTH = tm.value; rerender(); return; }
     const sel = e.target.closest("select.lblsel");
     if (sel) { applyEdit(sel, false); rerender(); return; }
     const ni = e.target.closest("input.numin");
@@ -977,7 +987,7 @@ function partnersView() {
     <td>${p.name}</td>
     <td class="mono t-muted">${p.biz || "-"}</td>
     <td>${p.ceo || "-"}</td>
-    <td>${gradeBadge(p.grade)}</td>
+    <td>${labelSelect("grade", "partners", "code", p.code, "grade")}</td>
     <td>${p.contact}</td>
     <td class="t-muted mono">${p.tel}</td>
     <td class="num mono t-strong" style="color:${p.balance < 0 ? "var(--danger)" : "var(--ink)"}">${won(p.balance)}</td>
@@ -1036,7 +1046,7 @@ function qualityView() {
       <td class="num mono" style="color:var(--ok)">${num(pass)}</td>
       <td class="num mono" style="color:${r.fail ? "var(--danger)" : "var(--ink-soft)"}">${r.fail}</td>
       <td class="num mono t-strong">${rate.toFixed(3)}%</td>
-      <td><span class="badge b-ok">합격</span></td>
+      <td>${labelSelect("verdict", "shipInspect", "lot", r.lot, "verdict")}</td>
     </tr>`;
   }).join("");
 
@@ -1120,7 +1130,7 @@ function equipmentView() {
       <td>${e.maker}</td>
       <td class="t-muted">${e.year}</td>
       <td class="num mono">${2026 - yearOf(e.year)}년</td>
-      <td>${stBadge(e.status)}</td>
+      <td>${labelSelect("equip", "equipment", "mgmt", e.mgmt, "status")}</td>
     </tr>`).join("");
 
   const measRows = meas.map(e => `
@@ -1130,7 +1140,7 @@ function equipmentView() {
       <td class="mono t-muted">${e.spec}</td>
       <td class="t-muted">${e.year}</td>
       <td class="t-muted">${e.calib || "-"}</td>
-      <td>${stBadge(e.status)}</td>
+      <td>${labelSelect("equip", "equipment", "mgmt", e.mgmt, "status")}</td>
     </tr>`).join("");
 
   return `
@@ -1277,6 +1287,7 @@ Views.quote = () => {
 
 /* ---------------- 정산관리 (미수금 / 세금계산서) ---------------- */
 const SUB = { settlement: "현황", sales: "수주", quality: "품질" };
+let TAX_YEAR = "전체", TAX_MONTH = "전체";   // 세금계산서 기간 필터
 function subnav(group, tabs) {
   return `<div class="subtabs">${tabs.map(([k, t]) => `<a data-group="${group}" data-subtab="${k}" class="${SUB[group] === k ? "active" : ""}">${t}</a>`).join("")}</div>`;
 }
@@ -1399,11 +1410,36 @@ function settleStatement() {
 
 /* --- 세금계산서 탭 --- */
 function settleTaxView() {
-  const sell = DB.taxInvoices.filter(t => t.type === "매출");
-  const buy = DB.taxInvoices.filter(t => t.type === "매입");
+  const years = ["전체", "2026", "2025"];
+  const inPeriod = (t) =>
+    (TAX_YEAR === "전체" || t.date.slice(0, 4) === TAX_YEAR) &&
+    (TAX_MONTH === "전체" || t.date.slice(5, 7) === TAX_MONTH);
+  const list = DB.taxInvoices.filter(inPeriod);
+  const sell = list.filter(t => t.type === "매출"), buy = list.filter(t => t.type === "매입");
   const sumS = sell.reduce((s, t) => s + t.supply, 0), sumSv = sell.reduce((s, t) => s + t.vat, 0);
   const sumB = buy.reduce((s, t) => s + t.supply, 0), sumBv = buy.reduce((s, t) => s + t.vat, 0);
-  const taxRows = DB.taxInvoices.map(t => `
+
+  // 월별 집계
+  const mAgg = {};
+  list.forEach(t => {
+    const ym = t.date.slice(0, 7); const a = (mAgg[ym] = mAgg[ym] || { sale: 0, buy: 0, sv: 0, bv: 0 });
+    if (t.type === "매출") { a.sale += t.supply; a.sv += t.vat; } else { a.buy += t.supply; a.bv += t.vat; }
+  });
+  const monthRows = Object.keys(mAgg).sort().reverse().map(ym => {
+    const a = mAgg[ym], net = a.sale - a.buy;
+    return `<tr>
+      <td class="t-strong">${ym}</td>
+      <td class="num mono" style="color:var(--primary)">${won(a.sale)}</td>
+      <td class="num mono" style="color:#7b3fe4">${won(a.buy)}</td>
+      <td class="num mono t-strong" style="color:${net >= 0 ? "var(--ok)" : "var(--danger)"}">${won(net)}</td>
+    </tr>`;
+  }).join("");
+
+  const yearChips = years.map(y => `<span class="chip ${TAX_YEAR === y ? "active" : ""}" data-taxyear="${y}">${y === "전체" ? "전체연도" : y + "년"}</span>`).join("");
+  const monthOpts = ["전체", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
+    .map(m => `<option value="${m}" ${TAX_MONTH === m ? "selected" : ""}>${m === "전체" ? "전체 월" : parseInt(m, 10) + "월"}</option>`).join("");
+
+  const taxRows = list.map(t => `
     <tr>
       <td class="t-muted">${t.date}</td>
       <td>${t.type === "매출" ? `<span class="badge b-info">매출</span>` : `<span class="badge b-purple">매입</span>`}</td>
@@ -1413,23 +1449,37 @@ function settleTaxView() {
       <td class="num mono t-strong">${won(t.supply + t.vat)}</td>
       <td><span class="badge b-ok">${t.status}</span></td>
     </tr>`).join("");
+
   return `
-  <div class="card fade">
-    <div class="card-h"><h3>세금계산서 연동</h3>
-      <div style="display:flex;gap:8px;align-items:center">
-        <span class="badge b-info">홈택스 연동 예정</span>
-        <button class="btn primary" data-action="tax-issue">＋ 세금계산서 발행</button>
-      </div></div>
-    <div class="card-b">
-      <div class="demo-banner" style="margin-bottom:16px">
-        📎 홈택스 매입·매출 세금계산서 파일을 첨부하면, 거래처·일자·공급가·부가세를 자동 분류하여 이 목록과 부가세 신고 자료로 정리합니다.
-      </div>
-      <div class="statline" style="margin-bottom:16px">
-        <div class="s"><div class="lbl">매출 합계 (공급가)</div><div class="val" style="color:var(--primary)">${won(sumS)}</div></div>
-        <div class="s"><div class="lbl">매입 합계 (공급가)</div><div class="val" style="color:#7b3fe4">${won(sumB)}</div></div>
-        <div class="s"><div class="lbl">납부예상 부가세</div><div class="val" style="color:var(--danger)">${won(sumSv - sumBv)}</div></div>
-      </div>
+  <div class="toolbar" style="margin-bottom:14px">
+    <div class="filters">${yearChips}</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <select id="taxMonth" class="search" style="width:auto">${monthOpts}</select>
+      <button class="btn primary" data-action="tax-issue">＋ 세금계산서 발행</button>
     </div>
+  </div>
+
+  <div class="grid g-4" style="margin-bottom:16px">
+    <div class="card kpi"><div class="kpi-label">매출 합계 (공급가)</div><div class="kpi-val" style="font-size:20px;color:var(--primary)">${won(sumS)}</div><div class="kpi-delta up">${sell.length}건</div></div>
+    <div class="card kpi"><div class="kpi-label">매입 합계 (공급가)</div><div class="kpi-val" style="font-size:20px;color:#7b3fe4">${won(sumB)}</div><div class="kpi-delta up">${buy.length}건</div></div>
+    <div class="card kpi"><div class="kpi-label">매출 세액 <span class="t-muted" style="font-size:11px">(계산서)</span></div><div class="kpi-val" style="font-size:20px">${won(sumSv)}</div></div>
+    <div class="card kpi"><div class="kpi-label">매입 세액 <span class="t-muted" style="font-size:11px">(계산서)</span></div><div class="kpi-val" style="font-size:20px">${won(sumBv)}</div></div>
+  </div>
+
+  <div class="demo-banner" style="margin-bottom:16px">
+    ※ 본 화면은 <b>세금계산서 기준 금액</b>만 집계합니다. 사업용 카드매입·현금영수증 등 미연동 항목이 있어 실제 부가세 납부액과는 다릅니다. (카드·계좌 연동 시 자동 반영 예정)
+  </div>
+
+  <div class="card fade" style="margin-bottom:16px">
+    <div class="card-h"><h3>월별 집계</h3><span class="hint">${TAX_YEAR === "전체" ? "전체 기간" : TAX_YEAR + "년"} · 공급가 기준</span></div>
+    <table class="tbl">
+      <thead><tr><th>연·월</th><th class="num">매출(공급가)</th><th class="num">매입(공급가)</th><th class="num">매출−매입</th></tr></thead>
+      <tbody>${monthRows || `<tr><td colspan="4" class="t-muted">해당 기간 자료가 없습니다.</td></tr>`}</tbody>
+    </table>
+  </div>
+
+  <div class="card fade">
+    <div class="card-h"><h3>세금계산서 내역</h3><span class="hint">${list.length}건 · 홈택스 기준</span></div>
     <table class="tbl">
       <thead><tr><th>작성일</th><th>구분</th><th>거래처</th><th class="num">공급가액</th><th class="num">부가세</th><th class="num">합계</th><th>상태</th></tr></thead>
       <tbody>${taxRows}</tbody>
@@ -1520,6 +1570,15 @@ function buildNav() {
     const a = e.target.closest("a[data-route]");
     if (a) go(a.dataset.route);
   });
+  // 모바일 햄버거 메뉴 버튼
+  const right = document.querySelector(".bar-right");
+  if (right && !document.getElementById("navToggle")) {
+    const btn = document.createElement("button");
+    btn.id = "navToggle"; btn.type = "button"; btn.className = "nav-toggle"; btn.setAttribute("aria-label", "메뉴");
+    btn.textContent = "☰";
+    btn.addEventListener("click", () => document.getElementById("nav").classList.toggle("open"));
+    right.insertBefore(btn, right.firstChild);
+  }
 }
 
 function go(route, keep) {
@@ -1528,17 +1587,19 @@ function go(route, keep) {
   $$all(".tabs a[data-route]").forEach(a => a.classList.toggle("active", a.dataset.route === route));
   const head = `<div class="page-head fade"><h1>${meta.title}</h1><p>${meta.sub}</p></div>`;
   $("#content").innerHTML = head + (Views[route] || Views.dashboard)();
+  const nv = $("#nav"); if (nv) nv.classList.remove("open");  // 모바일 메뉴 닫기
   if (!keep) window.scrollTo(0, 0);
 }
 
 /* 초기화 */
 function init() {
-  $("#brandName").innerHTML = `${DB.meta.company}<span> ${DB.meta.companyEn}</span>`;
-  $("#brandSub").textContent = "스마트팩토리 ERP";
-  $("#dateChip").textContent = "기준일 " + DB.meta.baseDate;
-  $("#userName").textContent = DB.meta.ceo + " 대표";
-  $("#userRole").textContent = DB.meta.company;
-  $("#avatar").textContent = DB.meta.ceo.charAt(0);
+  const set = (sel, fn) => { const el = $(sel); if (el) fn(el); };
+  set("#brandName", el => el.innerHTML = `${DB.meta.company}<span> ${DB.meta.companyEn}</span>`);
+  set("#brandSub", el => el.textContent = "스마트팩토리 ERP");
+  set("#dateChip", el => el.textContent = "기준일 " + DB.meta.baseDate);
+  set("#userName", el => el.textContent = DB.meta.ceo + " 대표");
+  set("#userRole", el => el.textContent = DB.meta.company);
+  set("#avatar", el => el.textContent = DB.meta.ceo.charAt(0));
   buildNav();
   bindEvents();
   go("dashboard");

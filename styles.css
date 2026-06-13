@@ -85,6 +85,7 @@ html, body {
 .tabs a .ic { font-size: 15px; }
 .tabs a:hover { color: var(--ink); }
 .tabs a.active { color: var(--primary); border-bottom-color: var(--primary); }
+.nav-toggle { display: none; border: 1px solid var(--line); background: #fff; color: var(--ink); border-radius: 9px; width: 40px; height: 40px; font-size: 18px; cursor: pointer; }
 
 /* ---------------- 콘텐츠 ---------------- */
 .content { padding: 24px 28px 48px; max-width: 1440px; width: 100%; margin: 0 auto; }
@@ -194,23 +195,38 @@ table.tbl td.num, table.tbl th.num { text-align: right; font-variant-numeric: ta
 /* ---------------- 모바일 반응형 ---------------- */
 @media (max-width: 760px) {
   body { font-size: 13.5px; }
-  .bar-top { padding: 10px 16px; flex-wrap: wrap; gap: 8px; }
+  .bar-top { padding: 10px 14px; }
   .brand .name { font-size: 15px; }
-  .bar-right { gap: 10px; }
+  .bar-right { gap: 8px; }
   .user .uinfo { display: none; }
-  .tabs { padding: 0 10px; }
-  .tabs a { padding: 11px 11px 10px; font-size: 13px; }
+  .date-chip { display: none; }           /* 공간 확보 */
+  .nav-toggle { display: inline-grid; place-items: center; }
+
+  /* 탭 → 햄버거 드롭다운 (가로 스크롤 제거) */
+  .tabs {
+    display: none; position: absolute; left: 0; right: 0; top: 100%;
+    flex-direction: column; background: #fff; border-bottom: 1px solid var(--line);
+    box-shadow: 0 14px 28px rgba(20,30,60,.14); z-index: 50; max-height: 72vh; overflow-y: auto; padding: 6px 0;
+  }
+  .tabs.open { display: flex; }
+  .tabs a { padding: 14px 18px; font-size: 14px; border-bottom: 1px solid var(--line-2); border-left: 3px solid transparent; }
+  .tabs a.active { border-bottom-color: var(--line-2); border-left-color: var(--primary); background: #f5f8ff; }
+
   .content { padding: 16px 14px 40px; }
   .page-head h1 { font-size: 18px; }
-  /* 표는 가로 스크롤 */
+  /* 넓은 표는 가로 스크롤 */
   .card > table.tbl, .quote-items table, .stmt { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .stmt table { min-width: 680px; }
   table.tbl { min-width: 560px; }
   .summary-box { width: 100%; }
   .party-wrap { grid-template-columns: 1fr; }
-  .modal { width: 100%; }
   .statline { gap: 16px; }
-  .kpi .kpi-val { font-size: 23px; }
+  .kpi .kpi-val { font-size: 22px; }
+
+  /* 모달: 화면 가운데·폭 맞춤·가로 스크롤 제거 */
+  .modal-wrap { padding: 14px 10px; align-items: flex-start; }
+  .modal, .modal.wide { width: 100%; max-width: 100%; }
+  .modal-b { overflow-x: auto; }
 }
 
 svg text { font-family: inherit; }
