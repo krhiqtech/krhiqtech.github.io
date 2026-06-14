@@ -93,9 +93,27 @@ html, body {
 
 /* ---------------- 콘텐츠 ---------------- */
 .content { padding: 24px 28px 48px; max-width: 1440px; width: 100%; margin: 0 auto; }
-.page-head { margin-bottom: 18px; }
+.page-head { margin-bottom: 18px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .page-head h1 { font-size: 20px; font-weight: 800; letter-spacing: -.4px; }
 .page-head p { font-size: 13px; color: var(--ink-soft); margin-top: 3px; font-weight: 500; }
+/* 수정 모드 토글 버튼 */
+.edit-mode-btn { border: 1.5px solid var(--primary); background: #fff; color: var(--primary-d); border-radius: 10px;
+  padding: 9px 18px; font-size: 13.5px; font-weight: 800; cursor: pointer; font-family: inherit; white-space: nowrap; flex-shrink: 0; }
+.edit-mode-btn:hover { background: var(--primary-l); }
+.edit-mode-btn.on { background: var(--ok); border-color: var(--ok); color: #fff; }
+/* 보기 모드: 인라인 편집 컨트롤을 일반 텍스트처럼 표시 + 비활성화 */
+.viewmode .celledit, .viewmode .numin, .viewmode input.txtin, .viewmode .stmt-in,
+.viewmode select.optsel, .viewmode select.celledit, .viewmode .qmeta-edit, .viewmode .qparty-edit,
+.viewmode .qnote-edit, .viewmode .bomcomp-edit {
+  border-color: transparent !important; background: transparent !important; box-shadow: none !important;
+  pointer-events: none; -webkit-appearance: none; appearance: none; resize: none; }
+.viewmode select.optsel, .viewmode select.celledit { background-image: none !important; padding-right: 6px; }
+.viewmode .lblsel { pointer-events: none; background-image: none !important; padding-right: 12px; }
+.viewmode .tgl-sw { pointer-events: none; }
+.viewmode .ed[contenteditable], .viewmode [contenteditable="true"] { pointer-events: none; }
+.viewmode .ed:hover { background: transparent; }
+.viewmode .rowdel, .viewmode .btn-addrow { display: none !important; }
+.viewmode .edit-hint { display: none; }
 
 /* ---------------- 카드/그리드 ---------------- */
 .card {
@@ -312,6 +330,56 @@ svg text { font-family: inherit; }
   font-variant-numeric: tabular-nums; font-family: inherit;
 }
 .numin:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-l); }
+/* 인라인 셀 편집(텍스트/선택) */
+.celledit { border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font-size: 13px;
+  font-weight: 600; outline: none; font-family: inherit; background: #fff; color: var(--ink); max-width: 100%; }
+.celledit:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-l); }
+select.celledit { cursor: pointer; appearance: auto; }
+.txtin { text-align: left; }
+/* 행 삭제 버튼 */
+.rowdel { border: none; background: #fde9e9; color: var(--danger); width: 24px; height: 24px;
+  border-radius: 7px; cursor: pointer; font-size: 12px; font-weight: 800; line-height: 1; }
+.rowdel:hover { background: #f9c0c0; }
+.btn-addrow { border: 1px dashed var(--primary); background: var(--primary-l); color: var(--primary-d);
+  border-radius: 10px; padding: 7px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.btn-addrow:hover { filter: brightness(.97); }
+/* VAT 토글 버튼 */
+.vat-toggle { border: none; border-radius: 20px; padding: 3px 12px; font-size: 11px; font-weight: 800;
+  cursor: pointer; font-family: inherit; margin-left: 6px; }
+.vat-toggle.on { background: #e7f6ec; color: var(--ok); }
+.vat-toggle.off { background: #fde9e9; color: var(--danger); }
+/* 견적 메타/공급자/안내사항 인라인 편집 */
+.qmeta-edit { border: 1px solid transparent; border-radius: 6px; padding: 1px 5px; font-family: inherit;
+  font-size: inherit; font-weight: inherit; color: inherit; background: #f3f6fc; }
+.qmeta-edit:focus { border-color: var(--primary); background: #fff; outline: none; }
+.qparty-edit { border: 1px solid transparent; border-radius: 6px; padding: 2px 5px; font-family: inherit;
+  font-size: 13px; color: var(--ink); background: #f3f6fc; width: 100%; text-align: right; }
+.qparty-edit:focus { border-color: var(--primary); background: #fff; outline: none; }
+.qnote-edit { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+  font-size: 12.5px; color: var(--ink-soft); line-height: 1.8; font-family: inherit; resize: vertical;
+  margin-top: 8px; background: #fff; }
+.qnote-edit:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-l); outline: none; }
+/* 활동 로그 */
+.actlog { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow: auto; }
+.actlog .row { display: flex; align-items: center; gap: 10px; font-size: 12.5px; padding: 8px 10px;
+  background: #f7f9fc; border-radius: 9px; }
+.actlog .row .time { color: var(--ink-soft); font-variant-numeric: tabular-nums; font-weight: 700; }
+.actlog .row .txt { flex: 1; }
+.actlog .undo { border: 1px solid var(--line); background: #fff; border-radius: 7px; padding: 4px 10px;
+  font-size: 11.5px; font-weight: 700; cursor: pointer; color: var(--primary-d); font-family: inherit; }
+.actlog .undo:hover { background: var(--primary-l); }
+/* 세금계산서 발행 모달 (섹션형) */
+.form-sec { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; }
+.form-sec h4 { font-size: 13px; font-weight: 800; color: var(--ink); margin-bottom: 12px; }
+.fldrow { display: grid; grid-template-columns: 92px 1fr; align-items: center; gap: 10px; margin-bottom: 10px; }
+.fldrow:last-child { margin-bottom: 0; }
+.fldrow > label { font-size: 12.5px; font-weight: 700; color: var(--ink-soft); }
+.fldrow input, .fldrow select, .fldrow textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px;
+  padding: 9px 11px; font-size: 13px; font-family: inherit; outline: none; background: #fff; }
+.fldrow input:focus, .fldrow select:focus, .fldrow textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-l); }
+.tax-warn { background: #fdeef0; border: 1px solid #f6c6cf; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; }
+.tax-warn .t { font-weight: 800; color: #c0264a; font-size: 13px; margin-bottom: 6px; }
+.tax-warn ul { margin: 0; padding-left: 18px; color: #c0264a; font-size: 12.5px; line-height: 1.7; }
 
 /* ---------------- 모달 ---------------- */
 .modal-wrap {
@@ -403,6 +471,11 @@ svg text { font-family: inherit; }
 .stmt .ed { cursor: text; }
 .stmt .ed:hover { background: #f7faff; }
 .stmt .ed:focus { outline: 2px solid var(--primary); outline-offset: -2px; background: #f3f7ff; }
+.stmt .ed input.stmt-in { width: 100%; border: none; background: transparent; font: inherit; color: inherit;
+  outline: none; padding: 0; margin: 0; box-sizing: border-box; }
+.stmt .ed input.stmt-in.num { text-align: right; font-variant-numeric: tabular-nums; }
+.stmt .ed:focus-within { outline: 2px solid var(--primary); outline-offset: -2px; background: #f3f7ff; }
+.stmt td.auto { background: #f3f6fc; color: var(--ink); font-weight: 700; }
 .stmt .ih { height: 31px; }
 .stmt .grand { font-size: 17px; font-weight: 800; }
 .stmt .grand small { display: block; font-size: 11px; font-weight: 600; color: var(--ink-soft); margin-top: 2px; }
