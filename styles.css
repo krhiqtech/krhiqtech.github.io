@@ -114,6 +114,31 @@ html, body {
 .viewmode .ed:hover { background: transparent; }
 .viewmode .rowdel, .viewmode .btn-addrow { display: none !important; }
 .viewmode .edit-hint { display: none; }
+/* 재무제표 표 */
+.fi-tbl td { padding: 11px 16px; font-size: 13.5px; }
+.fi-tbl td:last-child { text-align: right; width: 200px; }
+.fi-tbl .fi-sum td { background: #f3f6fc; border-top: 2px solid #cdd8f6; }
+
+/* 품목 마스터 — 구분 그룹 + 정돈 */
+.master-tbl .grp-row td { background: #f4f7fb; padding: 9px 16px; border-bottom: 1px solid var(--line); }
+.master-tbl .grp-row .grp-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+.master-tbl .grp-row td { font-weight: 800; font-size: 12.5px; color: var(--ink); }
+.master-tbl .grp-cnt { display: inline-block; margin-left: 8px; font-size: 11px; font-weight: 700; color: var(--ink-soft); background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 1px 9px; }
+.act-col { width: 40px; text-align: center; }
+
+/* BOM 카드 */
+.bom-card { padding: 16px 18px; display: flex; flex-direction: column; }
+.bom-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.bom-title { font-size: 14.5px; font-weight: 800; letter-spacing: -.2px; }
+.bom-metrics { display: flex; gap: 10px; margin: 14px 0 8px; }
+.bom-metrics .bm { flex: 1; background: #f7f9fc; border: 1px solid var(--line); border-radius: 11px; padding: 9px 12px; }
+.bom-metrics .bm-l { font-size: 11px; color: var(--ink-soft); font-weight: 600; }
+.bom-metrics .bm-v { font-size: 14px; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.bom-bar { margin: 4px 2px 14px; }
+.bom-tbl { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.bom-tbl th { background: #f7f9fc; }
+.bom-tbl th, .bom-tbl td { border-bottom: 1px solid var(--line-2); }
+@media (max-width: 1100px) { .bom-metrics { flex-wrap: wrap; } }
 
 /* ---------------- 카드/그리드 ---------------- */
 .card {

@@ -511,6 +511,13 @@ function addAuditRow() {
   DB.lineAudit.push({ line: LINES[0].v, date: DB.meta.baseDate, score: 95, auditor: "품질팀" });
   rerender();
 }
+function addGlRow() {
+  let n = DB.glLedger.length + 1, id;
+  do { id = "GL" + pad(n++, 2); } while (DB.glLedger.some(g => g.id === id));
+  DB.glLedger.unshift({ id, date: DB.meta.baseDate, account: "", desc: "", debit: 0, credit: 0 });
+  logAct(`총계정원장 행 추가 · ${id}`, () => { const i = DB.glLedger.findIndex(g => g.id === id); if (i >= 0) DB.glLedger.splice(i, 1); });
+  rerender();
+}
 function addInspectRow() {
   let n = DB.shipInspect.length + 1, lot;
   do { lot = "L-N" + pad(n++, 3); } while (DB.shipInspect.some(r => r.lot === lot));
@@ -530,7 +537,7 @@ function bindEvents() {
     "po-add-row": () => { const b = document.getElementById("poBody"); if (b) b.insertAdjacentHTML("beforeend", poRow(DB.items[0].code, 1000)); },
     "stock-add": addStockRow, "item-add": addItemRow, "complaint-add": addComplaint,
     "quote-list-add": addQuoteListRow, "quote-item-add": addQuoteItem,
-    "audit-add": addAuditRow, "inspect-add": addInspectRow,
+    "audit-add": addAuditRow, "inspect-add": addInspectRow, "gl-add": addGlRow,
   };
   document.addEventListener("click", e => {
     if (e.target.id === "modalWrap") { closeModal(); return; }
@@ -594,6 +601,8 @@ function bindEvents() {
     if (qit) { const it = DB.quoteDetail.items[+qit.dataset.idx]; if (it) it[qit.dataset.field] = qit.dataset.num ? (parseFloat(qit.value) || 0) : qit.value; rerender(); return; }
     const bc = e.target.closest(".bomcomp-edit");
     if (bc) { const b = DB.boms.find(x => x.parent === bc.dataset.bom); if (b && b.comps[+bc.dataset.ci]) b.comps[+bc.dataset.ci].qty = parseFloat(bc.value) || 0; rerender(); return; }
+    const fe = e.target.closest(".fin-edit");
+    if (fe) { DB.finance[fe.dataset.field] = fe.dataset.text ? fe.value : (parseFloat(fe.value) || 0); rerender(); return; }
     // 품목 선택 드롭다운
     const wis = e.target.closest("select.wo-itemsel");
     if (wis) { const r = DB.workorders.find(x => String(x.wo) === String(wis.dataset.key)); if (r) { const it = itemOf(wis.value); r.item = wis.value; r.itemName = it.name; } rerender(); return; }
@@ -1127,27 +1136,24 @@ Views.inventory = () => {
   const fgValue = enriched.filter(e => e.cat === "완제품").reduce((s, e) => s + e.value, 0);
   const rmValue = enriched.filter(e => e.cat === "원자재").reduce((s, e) => s + e.value, 0);
 
-  const catBadge = (c) => {
-    const m = { "완제품": "b-info", "반제품": "b-purple", "원자재": "b-gray" };
-    return `<span class="badge ${m[c]}">${c}</span>`;
-  };
-
+  const ED = EDIT_MODE;
   const rows = enriched.map(e => {
     const ratio = e.safety ? (e.qty / e.safety) * 100 : 200;
     const stat = e.qty < e.safety ? `<span class="badge b-danger">부족</span>`
       : ratio < 130 ? `<span class="badge b-warn">주의</span>`
       : `<span class="badge b-ok">정상</span>`;
-    return `<tr>
+    const accent = CAT_ACCENT[e.cat] || "#8c98a8";
+    return `<tr style="box-shadow:inset 3px 0 0 ${accent}">
       <td class="mono t-strong">${e.code}</td>
-      <td style="min-width:200px">${stockItemSelect(e.code)}</td>
-      <td>${optSelect("items", "code", e.code, "cat", e.cat, ["완제품", "반제품", "원자재"])}</td>
-      <td class="num">${numInput("stock", "code", e.code, "qty", e.qty, { w: 82 })} <span class="t-muted" style="font-size:11px">${e.unit}</span></td>
-      <td class="num">${numInput("items", "code", e.code, "safety", e.safety, { w: 78 })}</td>
-      <td class="num">${numInput("items", "code", e.code, "price", e.price, { w: 84 })}</td>
+      <td style="min-width:180px">${ED ? stockItemSelect(e.code) : `<span class="t-strong">${e.name}</span>`}</td>
+      <td>${ED ? optSelect("items", "code", e.code, "cat", e.cat, ["완제품", "반제품", "원자재"]) : catBadgeM(e.cat)}</td>
+      <td class="num mono">${ED ? numInput("stock", "code", e.code, "qty", e.qty, { w: 82 }) : num(e.qty)} <span class="t-muted" style="font-size:11px">${e.unit}</span></td>
+      <td class="num mono t-muted">${ED ? numInput("items", "code", e.code, "safety", e.safety, { w: 80 }) : num(e.safety)}</td>
+      <td class="num mono">${ED ? numInput("items", "code", e.code, "price", e.price, { w: 86 }) : won(e.price)}</td>
       <td class="num mono t-strong">${won(e.value)}</td>
-      <td>${textInput("stock", "code", e.code, "loc", e.loc, { w: 96 })}</td>
+      <td>${ED ? textInput("stock", "code", e.code, "loc", e.loc, { w: 96 }) : `<span class="t-muted">${e.loc}</span>`}</td>
       <td>${stat}</td>
-      <td>${delBtn("stock", "code", e.code)}</td>
+      <td class="act-col">${ED ? delBtn("stock", "code", e.code) : ""}</td>
     </tr>`;
   }).join("");
 
@@ -1167,15 +1173,15 @@ Views.inventory = () => {
 
   <div class="grid g-2-1" style="margin-top:18px">
     <div class="card fade">
-      <div class="card-h"><h3>재고 현황</h3>
+      <div class="card-h"><h3>📦 재고 현황</h3>
         <div style="display:flex;gap:8px;align-items:center">
-          <input class="search" placeholder="품목코드 · 품목명 검색" style="width:200px">
-          <button class="btn-addrow" data-action="stock-add">＋ 재고품목 추가</button></div></div>
-      <div style="padding:12px 18px 0"><div class="edit-hint" style="margin:0">✎ 품목명은 등록된 품목 중 <b>선택</b>하고, 구분·현재고·안전재고·단가·위치를 직접 수정할 수 있습니다. <b>재고금액 = 현재고 × 단가</b>로 자동 계산되며, 위 요약(총 재고자산 등)에 즉시 반영됩니다.</div></div>
-      <table class="tbl">
-        <thead><tr><th>품목코드</th><th>품목명(선택)</th><th>구분</th>
+          <input class="search" placeholder="품목코드 · 품목명 검색" style="width:190px">
+          ${ED ? `<button class="btn-addrow" data-action="stock-add">＋ 재고품목 추가</button>` : ""}</div></div>
+      ${ED ? `<div style="padding:12px 18px 0"><div class="edit-hint" style="margin:0">✎ 품목명은 등록된 품목 중 <b>선택</b>하고, 구분·현재고·안전재고·단가·위치를 직접 수정할 수 있습니다. <b>재고금액 = 현재고 × 단가</b>로 자동 계산됩니다.</div></div>` : ""}
+      <table class="tbl master-tbl">
+        <thead><tr><th>품목코드</th><th>품목명</th><th>구분</th>
           <th class="num">현재고</th><th class="num">안전</th><th class="num">단가</th>
-          <th class="num">재고금액</th><th>위치</th><th>상태</th><th></th></tr></thead>
+          <th class="num">재고금액</th><th>위치</th><th>상태</th><th class="act-col"></th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
@@ -1189,40 +1195,75 @@ Views.inventory = () => {
 };
 
 /* ---------------- 품목/BOM ---------------- */
+const CAT_BADGE = { "완제품": "b-info", "반제품": "b-purple", "원자재": "b-gray" };
+const CAT_ACCENT = { "완제품": "#2f54eb", "반제품": "#7b3fe4", "원자재": "#8c98a8" };
+function catBadgeM(c) { return `<span class="badge ${CAT_BADGE[c] || "b-gray"}">${c}</span>`; }
+
 Views.bom = () => {
-  const itemRows = DB.items.map(it => {
-    const stk = DB.stock.find(s => s.code === it.code);
-    return `<tr>
-      <td class="mono t-strong">${it.code}</td>
-      <td>${textInput("items", "code", it.code, "name", it.name, { w: 200 })}</td>
-      <td>${optSelect("items", "code", it.code, "cat", it.cat, ["완제품", "반제품", "원자재"])}</td>
-      <td>${optSelect("items", "code", it.code, "unit", it.unit, ["EA", "M", "R", "SET", "식"])}</td>
-      <td class="num">${numInput("items", "code", it.code, "price", it.price, { w: 92 })}</td>
-      <td class="num">${numInput("items", "code", it.code, "safety", it.safety, { w: 84 })}</td>
-      <td class="num">${stk ? numInput("stock", "code", it.code, "qty", stk.qty, { w: 84 }) : `<span class="t-muted" style="font-size:11px">재고없음</span>`}</td>
-      <td>${delBtn("items", "code", it.code)}</td>
-    </tr>`;
+  const ED = EDIT_MODE;
+  const fg = DB.items.filter(i => i.cat === "완제품").length;
+  const sf = DB.items.filter(i => i.cat === "반제품").length;
+  const rm = DB.items.filter(i => i.cat === "원자재").length;
+  const avgMargin = DB.boms.length ? DB.boms.reduce((s, b) => {
+    const f = itemOf(b.parent), mc = b.comps.reduce((x, c) => x + c.qty * itemOf(c.code).price, 0);
+    return s + (f.price ? (f.price - mc) / f.price * 100 : 0);
+  }, 0) / DB.boms.length : 0;
+
+  // 품목 마스터 — 구분별 그룹
+  const cats = ["완제품", "반제품", "원자재"];
+  const colCount = 7;
+  const itemGroups = cats.map(cat => {
+    const items = DB.items.filter(i => i.cat === cat);
+    if (!items.length) return "";
+    const head = `<tr class="grp-row"><td colspan="${colCount}">
+      <span class="grp-dot" style="background:${CAT_ACCENT[cat]}"></span>${cat}
+      <span class="grp-cnt">${items.length}</span></td></tr>`;
+    const body = items.map(it => {
+      const stk = DB.stock.find(s => s.code === it.code);
+      return `<tr style="box-shadow:inset 3px 0 0 ${CAT_ACCENT[cat]}">
+        <td class="mono t-strong">${it.code}</td>
+        <td>${ED ? textInput("items", "code", it.code, "name", it.name, { w: 220 }) : `<span class="t-strong">${it.name}</span>`}</td>
+        <td>${ED ? optSelect("items", "code", it.code, "unit", it.unit, ["EA", "M", "R", "SET", "식"]) : `<span class="t-muted">${it.unit}</span>`}</td>
+        <td class="num mono">${ED ? numInput("items", "code", it.code, "price", it.price, { w: 96 }) : won(it.price)}</td>
+        <td class="num mono t-muted">${ED ? numInput("items", "code", it.code, "safety", it.safety, { w: 88 }) : num(it.safety)}</td>
+        <td class="num mono">${stk ? (ED ? numInput("stock", "code", it.code, "qty", stk.qty, { w: 88 }) : num(stk.qty)) : `<span class="t-muted" style="font-size:11px">—</span>`}</td>
+        <td class="act-col">${ED ? delBtn("items", "code", it.code) : ""}</td>
+      </tr>`;
+    }).join("");
+    return head + body;
   }).join("");
 
+  // BOM 카드
   const bomCards = DB.boms.map(b => {
-    const fg = itemOf(b.parent);
+    const f = itemOf(b.parent);
     const matCost = b.comps.reduce((s, c) => s + c.qty * itemOf(c.code).price, 0);
-    const margin = ((fg.price - matCost) / fg.price) * 100;
+    const margin = f.price ? ((f.price - matCost) / f.price) * 100 : 0;
+    const mcls = margin > 50 ? "b-ok" : margin > 30 ? "b-warn" : "b-danger";
+    const bcls = margin > 50 ? "ok" : margin > 30 ? "" : "warn";
     const compRows = b.comps.map((c, ci) => `
-      <tr><td class="mono t-muted">${c.code}</td><td>${c.name}</td>
-        <td class="num"><input type="number" class="numin bomcomp-edit" data-bom="${b.parent}" data-ci="${ci}" value="${c.qty}" min="0" step="0.01" style="width:74px"> <span class="t-muted" style="font-size:11px">${c.unit}</span></td>
-        <td class="num mono">${won(itemOf(c.code).price)}</td>
-        <td class="num mono t-strong">${won(c.qty * itemOf(c.code).price)}</td></tr>`).join("");
-    return `<div class="card fade" style="margin-bottom:16px">
-      <div class="card-h">
-        <h3>${b.parentName} <span class="mono t-muted" style="font-size:12px;font-weight:600">${b.parent}</span></h3>
-        <div style="display:flex;gap:16px;align-items:center">
-          <span class="t-muted" style="font-size:12px">판매단가 <b style="color:var(--ink)">${won(fg.price)}</b></span>
-          <span class="t-muted" style="font-size:12px">자재원가 <b style="color:var(--ink)">${won(matCost)}</b></span>
-          <span class="badge ${margin > 50 ? "b-ok" : margin > 30 ? "b-warn" : "b-danger"}">자재마진 ${margin.toFixed(0)}%</span>
+      <tr>
+        <td class="mono t-muted">${c.code}</td><td>${c.name}</td>
+        <td class="num">${ED
+          ? `<input type="number" class="numin bomcomp-edit" data-bom="${b.parent}" data-ci="${ci}" value="${c.qty}" min="0" step="0.01" style="width:74px"> <span class="t-muted" style="font-size:11px">${c.unit}</span>`
+          : `<span class="mono">${c.qty}</span> <span class="t-muted" style="font-size:11px">${c.unit}</span>`}</td>
+        <td class="num mono t-muted">${won(itemOf(c.code).price)}</td>
+        <td class="num mono t-strong">${won(c.qty * itemOf(c.code).price)}</td>
+      </tr>`).join("");
+    return `<div class="card fade bom-card">
+      <div class="bom-head">
+        <div>
+          <div class="bom-title">${b.parentName}</div>
+          <div class="mono t-muted" style="font-size:11.5px;font-weight:600;margin-top:2px">${b.parent}</div>
         </div>
+        <span class="badge ${mcls}" style="font-size:12.5px">자재마진 ${margin.toFixed(0)}%</span>
       </div>
-      <table class="tbl">
+      <div class="bom-metrics">
+        <div class="bm"><div class="bm-l">판매단가</div><div class="bm-v">${won(f.price)}</div></div>
+        <div class="bm"><div class="bm-l">자재원가</div><div class="bm-v">${won(matCost)}</div></div>
+        <div class="bm"><div class="bm-l">자재마진액</div><div class="bm-v" style="color:var(--ok)">${won(f.price - matCost)}</div></div>
+      </div>
+      <div class="bom-bar"><div class="pbar ${bcls}" style="height:7px"><i style="width:${Math.max(0, Math.min(margin, 100))}%"></i></div></div>
+      <table class="tbl bom-tbl">
         <thead><tr><th>자재코드</th><th>자재명</th><th class="num">소요량</th><th class="num">단가</th><th class="num">소요금액</th></tr></thead>
         <tbody>${compRows}</tbody>
       </table>
@@ -1230,20 +1271,27 @@ Views.bom = () => {
   }).join("");
 
   return `
-  <div class="card fade">
-    <div class="card-h"><h3>품목 마스터</h3>
+  <div class="grid g-4">
+    <div class="card kpi"><div class="kpi-label">총 품목</div><div class="kpi-val">${DB.items.length}<span class="unit">개</span></div></div>
+    <div class="card kpi"><div class="kpi-label">완제품 / 반제품</div><div class="kpi-val">${fg}<span class="unit">/ ${sf}</span></div></div>
+    <div class="card kpi"><div class="kpi-label">원자재</div><div class="kpi-val">${rm}<span class="unit">종</span></div></div>
+    <div class="card kpi"><div class="kpi-label">평균 자재마진</div><div class="kpi-val" style="color:var(--ok)">${avgMargin.toFixed(0)}<span class="unit">%</span></div></div>
+  </div>
+
+  <div class="card fade" style="margin-top:18px">
+    <div class="card-h"><h3>📦 품목 마스터</h3>
       <div style="display:flex;gap:8px;align-items:center">
         <span class="hint">총 ${DB.items.length}개 품목</span>
-        <button class="btn-addrow" data-action="item-add">＋ 품목 추가</button></div></div>
-    <div style="padding:12px 18px 0"><div class="edit-hint" style="margin:0">✎ 품목명·구분·단위·단가·안전재고·재고수량을 직접 수정하고, 행 추가/삭제할 수 있습니다. 여기에 등록한 품목이 재고관리·작업지시·견적 등에서 <b>선택 목록</b>으로 사용됩니다. (품목코드는 연결 보존을 위해 고정)</div></div>
-    <table class="tbl">
-      <thead><tr><th>품목코드</th><th>품목명</th><th>구분</th><th>단위</th><th class="num">단가</th><th class="num">안전재고</th><th class="num">재고수량</th><th></th></tr></thead>
-      <tbody>${itemRows}</tbody>
+        ${ED ? `<button class="btn-addrow" data-action="item-add">＋ 품목 추가</button>` : ""}</div></div>
+    ${ED ? `<div style="padding:12px 18px 0"><div class="edit-hint" style="margin:0">✎ 품목명·단위·단가·안전재고·재고수량을 직접 수정하고 행 추가/삭제할 수 있습니다. 여기 등록한 품목이 재고·작업지시·견적의 <b>선택 목록</b>이 됩니다. (코드는 연결 보존을 위해 고정)</div></div>` : ""}
+    <table class="tbl master-tbl">
+      <thead><tr><th>품목코드</th><th>품목명</th><th>단위</th><th class="num">단가</th><th class="num">안전재고</th><th class="num">재고수량</th><th class="act-col"></th></tr></thead>
+      <tbody>${itemGroups}</tbody>
     </table>
   </div>
 
-  <div class="sec-title" style="margin-top:24px"><span class="ic">🧬</span>BOM (자재명세서) — 완제품별 구성</div>
-  ${bomCards}`;
+  <div class="sec-title" style="margin-top:24px"><span class="ic">🧬</span>BOM (자재명세서) — 완제품별 구성 <span class="t-muted" style="font-size:12px;font-weight:600">· 판매단가 대비 자재원가/마진 자동 계산</span></div>
+  <div class="grid g-2">${bomCards}</div>`;
 };
 
 /* ---------------- 거래처 ---------------- */
@@ -1576,7 +1624,7 @@ Views.quote = () => {
 };
 
 /* ---------------- 정산관리 (미수금 / 세금계산서) ---------------- */
-const SUB = { settlement: "현황", sales: "수주", quality: "품질" };
+const SUB = { settlement: "현황", sales: "수주", quality: "품질", finance: "손익계산서" };
 let TAX_YEAR = "전체", TAX_MONTH = "전체";   // 세금계산서 기간 필터
 function subnav(group, tabs) {
   return `<div class="subtabs">${tabs.map(([k, t]) => `<a data-group="${group}" data-subtab="${k}" class="${SUB[group] === k ? "active" : ""}">${t}</a>`).join("")}</div>`;
@@ -1844,6 +1892,126 @@ Views.settlement = () => {
   return subnav("settlement", [["현황", "정산 현황"], ["세금계산서", "세금계산서 발행"], ["명세서", "거래명세서"], ["입출금", "입출금내역"]]) + body;
 };
 
+/* ---------------- 재무회계 (FI) ---------------- */
+function finN(field, w) { return `<input class="celledit numin fin-edit" data-field="${field}" type="number" value="${DB.finance[field]}" style="width:${w || 140}px;text-align:right">`; }
+function arOpenSum() { return DB.receivables.filter(r => r.status !== "완료").reduce((s, r) => s + r.amount, 0); }
+function apOpenSum() { return Math.abs(DB.partners.filter(p => p.type === "매입처").reduce((s, p) => s + p.balance, 0)); }
+function stockAssetSum() { return DB.stock.reduce((s, st) => s + st.qty * (itemOf(st.code).price || 0), 0); }
+
+function incomeStatementView() {
+  const f = DB.finance;
+  const gross = f.sales - f.cogs, op = gross - f.sga;
+  const ebt = op + f.nonOpIncome - f.nonOpExpense, net = ebt - f.corpTax;
+  const opM = f.sales ? op / f.sales * 100 : 0, netM = f.sales ? net / f.sales * 100 : 0;
+  const line = (label, cell) => `<tr><td>${label}</td><td class="num">${cell}</td></tr>`;
+  const sum = (label, val) => `<tr class="fi-sum"><td class="t-strong">${label}</td><td class="num mono t-strong">${won(val)}</td></tr>`;
+  return `
+  <div class="grid g-4">
+    <div class="card kpi"><div class="kpi-label">매출액 (당월)</div><div class="kpi-val" style="font-size:21px">${won(f.sales)}</div></div>
+    <div class="card kpi"><div class="kpi-label">영업이익</div><div class="kpi-val" style="font-size:21px;color:var(--ok)">${won(op)}</div><div class="kpi-delta up">영업이익률 ${opM.toFixed(1)}%</div></div>
+    <div class="card kpi"><div class="kpi-label">당기순이익</div><div class="kpi-val" style="font-size:21px;color:var(--primary)">${won(net)}</div><div class="kpi-delta up">순이익률 ${netM.toFixed(1)}%</div></div>
+    <div class="card kpi"><div class="kpi-label">매출총이익률</div><div class="kpi-val">${f.sales ? (gross / f.sales * 100).toFixed(1) : 0}<span class="unit">%</span></div></div>
+  </div>
+  <div class="card fade" style="margin-top:18px">
+    <div class="card-h"><h3>손익계산서 <span class="t-muted" style="font-size:12px;font-weight:600">· ${f.period}</span></h3></div>
+    <div style="padding:12px 18px 0"><div class="edit-hint" style="margin:0">✎ 매출액·매출원가·판관비 등 파란 숫자만 입력하면 매출총이익·영업이익·당기순이익은 자동 계산됩니다. (상단 「수정」 버튼)</div></div>
+    <table class="tbl fi-tbl"><tbody>
+      ${line("매출액", finN("sales"))}
+      ${line("(-) 매출원가", finN("cogs"))}
+      ${sum("매출총이익", gross)}
+      ${line("(-) 판매비와관리비", finN("sga"))}
+      ${sum("영업이익", op)}
+      ${line("(+) 영업외수익", finN("nonOpIncome"))}
+      ${line("(-) 영업외비용", finN("nonOpExpense"))}
+      ${sum("법인세비용차감전순이익", ebt)}
+      ${line("(-) 법인세비용", finN("corpTax"))}
+      ${sum("당기순이익", net)}
+    </tbody></table>
+  </div>`;
+}
+
+function balanceSheetView() {
+  const f = DB.finance;
+  const ar = arOpenSum(), inv = stockAssetSum(), ap = apOpenSum();
+  const totalAsset = f.cash + ar + inv + f.tangible + f.otherAsset;
+  const totalLiab = ap + f.shortLoan + f.otherLiab;
+  const retained = totalAsset - totalLiab - f.capital;
+  const totalEq = f.capital + retained;
+  const row = (label, cell) => `<tr><td>${label}</td><td class="num">${cell}</td></tr>`;
+  const auto = (v) => `<span class="mono">${won(v)}</span>`;
+  const sum = (label, v) => `<tr class="fi-sum"><td class="t-strong">${label}</td><td class="num mono t-strong">${won(v)}</td></tr>`;
+  return `
+  <div class="grid g-4">
+    <div class="card kpi"><div class="kpi-label">자산총계</div><div class="kpi-val" style="font-size:20px">${won(totalAsset)}</div></div>
+    <div class="card kpi"><div class="kpi-label">부채총계</div><div class="kpi-val" style="font-size:20px;color:var(--danger)">${won(totalLiab)}</div></div>
+    <div class="card kpi"><div class="kpi-label">자본총계</div><div class="kpi-val" style="font-size:20px;color:var(--primary)">${won(totalEq)}</div></div>
+    <div class="card kpi"><div class="kpi-label">부채비율</div><div class="kpi-val">${totalEq ? (totalLiab / totalEq * 100).toFixed(0) : 0}<span class="unit">%</span></div></div>
+  </div>
+  <div class="grid g-2" style="margin-top:18px">
+    <div class="card fade">
+      <div class="card-h"><h3>자산</h3></div>
+      <div style="padding:12px 18px 0"><div class="edit-hint" style="margin:0">매출채권·재고자산은 다른 화면 데이터에서 자동 집계됩니다.</div></div>
+      <table class="tbl fi-tbl"><tbody>
+        ${row("현금및현금성자산", finN("cash", 130))}
+        ${row(`매출채권 <span class="t-muted" style="font-size:11px">(미수금 자동)</span>`, auto(ar))}
+        ${row(`재고자산 <span class="t-muted" style="font-size:11px">(재고 자동)</span>`, auto(inv))}
+        ${row("유형자산(설비 등)", finN("tangible", 130))}
+        ${row("기타자산", finN("otherAsset", 130))}
+        ${sum("자산총계", totalAsset)}
+      </tbody></table>
+    </div>
+    <div class="card fade">
+      <div class="card-h"><h3>부채 · 자본</h3></div>
+      <div style="padding:12px 18px 0"><div class="edit-hint" style="margin:0">매입채무는 매입처 잔액에서 자동, 이익잉여금은 대차 일치로 자동 계산됩니다.</div></div>
+      <table class="tbl fi-tbl"><tbody>
+        ${row(`매입채무 <span class="t-muted" style="font-size:11px">(미지급금 자동)</span>`, auto(ap))}
+        ${row("단기차입금", finN("shortLoan", 130))}
+        ${row("기타부채", finN("otherLiab", 130))}
+        ${sum("부채총계", totalLiab)}
+        ${row("자본금", finN("capital", 130))}
+        ${row(`이익잉여금 <span class="t-muted" style="font-size:11px">(자동)</span>`, auto(retained))}
+        ${sum("자본총계", totalEq)}
+      </tbody></table>
+    </div>
+  </div>
+  <div class="edit-hint" style="margin-top:14px;background:#f6ffed;border-color:#b7eb8f;color:#237804">✔ 자산총계 ${won(totalAsset)} = 부채+자본 ${won(totalLiab + totalEq)} · 대차평형 자동 일치</div>`;
+}
+
+function glLedgerView() {
+  const debitSum = DB.glLedger.reduce((s, g) => s + (+g.debit || 0), 0);
+  const creditSum = DB.glLedger.reduce((s, g) => s + (+g.credit || 0), 0);
+  const accounts = ["보통예금", "현금", "외상매출금", "외상매입금", "미수금", "미지급금", "제품매출", "원재료", "급여", "지급임차료", "세금과공과", "복리후생비", "지급수수료", "기타"];
+  const rows = DB.glLedger.map(g => `
+    <tr>
+      <td>${textInput("glLedger", "id", g.id, "date", g.date, { w: 104 })}</td>
+      <td>${optSelect("glLedger", "id", g.id, "account", g.account || accounts[0], accounts)}</td>
+      <td>${textInput("glLedger", "id", g.id, "desc", g.desc, { w: 220, ph: "적요" })}</td>
+      <td class="num">${numInput("glLedger", "id", g.id, "debit", g.debit, { w: 116 })}</td>
+      <td class="num">${numInput("glLedger", "id", g.id, "credit", g.credit, { w: 116 })}</td>
+      <td>${delBtn("glLedger", "id", g.id)}</td>
+    </tr>`).join("");
+  return `
+  <div class="grid g-4">
+    <div class="card kpi"><div class="kpi-label">총 전표</div><div class="kpi-val">${DB.glLedger.length}<span class="unit">건</span></div></div>
+    <div class="card kpi"><div class="kpi-label">차변 합계</div><div class="kpi-val" style="font-size:20px">${won(debitSum)}</div></div>
+    <div class="card kpi"><div class="kpi-label">대변 합계</div><div class="kpi-val" style="font-size:20px">${won(creditSum)}</div></div>
+    <div class="card kpi"><div class="kpi-label">대차 차액</div><div class="kpi-val" style="color:${debitSum === creditSum ? "var(--ok)" : "var(--danger)"}">${won(debitSum - creditSum)}</div></div>
+  </div>
+  <div class="card fade" style="margin-top:18px">
+    <div class="card-h"><h3>총계정원장</h3><button class="btn-addrow" data-action="gl-add">＋ 전표 추가</button></div>
+    <div style="padding:12px 18px 0"><div class="edit-hint" style="margin:0">✎ 일자·계정과목·적요·차변·대변을 직접 입력하고 행 추가/삭제할 수 있습니다.</div></div>
+    <table class="tbl">
+      <thead><tr><th>일자</th><th>계정과목</th><th>적요</th><th class="num">차변</th><th class="num">대변</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+Views.finance = () => subnav("finance", [["손익계산서", "손익계산서"], ["재무상태표", "재무상태표"], ["총계정원장", "총계정원장"]]) +
+  (SUB.finance === "손익계산서" ? incomeStatementView()
+    : SUB.finance === "재무상태표" ? balanceSheetView()
+    : glLedgerView());
+
 /* =====================================================================
  * 네비게이션 & 라우팅
  * ===================================================================== */
@@ -1858,8 +2026,9 @@ const NAV = [
   { id: "quality",    name: "품질관리",     ic: "✅", title: "품질관리",       sub: "출하검사 · 공정감사 · 고객불만 · 설비현황" },
   { group: "기준정보" },
   { id: "bom",        name: "품목 / BOM",   ic: "🧬", title: "품목 / BOM",     sub: "품목 마스터 및 자재명세서" },
-  { group: "정산" },
+  { group: "정산/재무" },
   { id: "settlement", name: "정산관리",     ic: "💳", title: "정산관리",       sub: "미수금 · 거래명세서 · 세금계산서 · 입출금" },
+  { id: "finance",    name: "재무회계",     ic: "📒", title: "재무회계 (FI)",  sub: "매출채권 · 매입채무 · 총계정원장 · 결산 및 재무제표" },
 ];
 
 const $$all = (s) => Array.from(document.querySelectorAll(s));
