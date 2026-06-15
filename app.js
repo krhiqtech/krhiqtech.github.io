@@ -1921,78 +1921,70 @@ function incomeStatementView() {
   const gross = f.sales - f.cogs, op = gross - f.sga;
   const ebt = op + f.nonOpIncome - f.nonOpExpense, net = ebt - f.corpTax;
   const opM = f.sales ? op / f.sales * 100 : 0, netM = f.sales ? net / f.sales * 100 : 0;
-  const line = (label, cell) => `<tr><td>${label}</td><td class="num">${cell}</td></tr>`;
-  const sum = (label, val) => `<tr class="fi-sum"><td class="t-strong">${label}</td><td class="num mono t-strong">${won(val)}</td></tr>`;
+  const row = (label, v, o = {}) => `<tr><td style="padding-left:${(o.indent || 0) * 18 + 14}px" class="${o.bold ? "t-strong" : ""} ${o.sub ? "t-muted" : ""}">${o.minus ? "(−) " : o.plus ? "(+) " : ""}${label}</td><td class="num mono ${o.bold ? "t-strong" : ""}">${won(v)}</td><td class="num t-muted" style="font-size:12px">${o.pct || ""}</td></tr>`;
+  const sum = (label, v, pct) => `<tr class="fi-sum"><td class="t-strong">${label}</td><td class="num mono t-strong">${won(v)}</td><td class="num t-muted" style="font-size:12px">${pct || ""}</td></tr>`;
+  const sgaDetail = (f.sgaItems || []).map(([k, v]) => row(k, v, { indent: 1, sub: true })).join("");
   return `
   <div class="grid g-4">
-    <div class="card kpi"><div class="kpi-label">매출액</div><div class="kpi-val" style="font-size:21px">${won(f.sales)}</div></div>
+    <div class="card kpi"><div class="kpi-label">매출액</div><div class="kpi-val" style="font-size:21px;color:var(--primary)">${won(f.sales)}</div></div>
     <div class="card kpi"><div class="kpi-label">영업이익</div><div class="kpi-val" style="font-size:21px;color:var(--ok)">${won(op)}</div><div class="kpi-delta up">영업이익률 ${opM.toFixed(1)}%</div></div>
-    <div class="card kpi"><div class="kpi-label">당기순이익</div><div class="kpi-val" style="font-size:21px;color:var(--primary)">${won(net)}</div><div class="kpi-delta up">순이익률 ${netM.toFixed(1)}%</div></div>
-    <div class="card kpi"><div class="kpi-label">매출총이익률</div><div class="kpi-val">${f.sales ? (gross / f.sales * 100).toFixed(1) : 0}<span class="unit">%</span></div></div>
+    <div class="card kpi"><div class="kpi-label">당기순이익</div><div class="kpi-val" style="font-size:21px">${won(net)}</div><div class="kpi-delta up">순이익률 ${netM.toFixed(1)}%</div></div>
+    <div class="card kpi"><div class="kpi-label">매출총이익률</div><div class="kpi-val">${(gross / f.sales * 100).toFixed(1)}<span class="unit">%</span></div></div>
   </div>
   <div class="card fade" style="margin-top:18px">
     <div class="card-h"><h3>손익계산서 <span class="t-muted" style="font-size:12px;font-weight:600">· ${f.period}</span></h3></div>
-    <div style="padding:12px 18px 0"><div class="edit-hint" style="margin:0">✎ 매출액·매출원가·판관비 등 파란 숫자만 입력하면 매출총이익·영업이익·당기순이익은 자동 계산됩니다. (상단 「수정」 버튼)</div></div>
     <table class="tbl fi-tbl"><tbody>
-      ${line("매출액", finN("sales"))}
-      ${line("(-) 매출원가", finN("cogs"))}
-      ${sum("매출총이익", gross)}
-      ${line("(-) 판매비와관리비", finN("sga"))}
-      ${sum("영업이익", op)}
-      ${line("(+) 영업외수익", finN("nonOpIncome"))}
-      ${line("(-) 영업외비용", finN("nonOpExpense"))}
+      ${row("매출액", f.sales, { bold: true })}
+      ${row("매출원가", f.cogs, { minus: true })}
+      ${sum("매출총이익", gross, (gross / f.sales * 100).toFixed(1) + "%")}
+      ${row("판매비와관리비", f.sga, { minus: true, bold: true })}
+      ${sgaDetail}
+      ${sum("영업이익", op, opM.toFixed(1) + "%")}
+      ${row("영업외수익", f.nonOpIncome, { plus: true })}
+      ${row("영업외비용", f.nonOpExpense, { minus: true })}
       ${sum("법인세비용차감전순이익", ebt)}
-      ${line("(-) 법인세비용", finN("corpTax"))}
-      ${sum("당기순이익", net)}
+      ${row("법인세비용", f.corpTax, { minus: true })}
+      ${sum("당기순이익", net, netM.toFixed(1) + "%")}
     </tbody></table>
   </div>`;
 }
 
 function balanceSheetView() {
   const f = DB.finance;
-  const ar = arOpenSum(), inv = stockAssetSum(), ap = apOpenSum();
-  const totalAsset = f.cash + ar + inv + f.tangible + f.otherAsset;
-  const totalLiab = ap + f.shortLoan + f.otherLiab;
-  const retained = totalAsset - totalLiab - f.capital;
-  const totalEq = f.capital + retained;
-  const row = (label, cell) => `<tr><td>${label}</td><td class="num">${cell}</td></tr>`;
-  const auto = (v) => `<span class="mono">${won(v)}</span>`;
+  const asset = f.assetReal, liab = f.liabReal, eq = f.equityReal;
+  const row = (label, v, o = {}) => `<tr><td style="padding-left:${(o.indent || 0) * 18 + 14}px" class="${o.bold ? "t-strong" : ""} ${o.sub ? "t-muted" : ""}">${label}</td><td class="num mono ${o.bold ? "t-strong" : ""}">${won(v)}</td></tr>`;
   const sum = (label, v) => `<tr class="fi-sum"><td class="t-strong">${label}</td><td class="num mono t-strong">${won(v)}</td></tr>`;
+  const assetRows = (f.bsAsset || []).map(([k, v, ind]) => row(k, v, { indent: ind, sub: ind === 2 })).join("");
+  const liabRows = (f.bsLiab || []).map(([k, v]) => row(k, v, { indent: 1, sub: true })).join("");
   return `
   <div class="grid g-4">
-    <div class="card kpi"><div class="kpi-label">자산총계</div><div class="kpi-val" style="font-size:20px">${won(totalAsset)}</div></div>
-    <div class="card kpi"><div class="kpi-label">부채총계</div><div class="kpi-val" style="font-size:20px;color:var(--danger)">${won(totalLiab)}</div></div>
-    <div class="card kpi"><div class="kpi-label">자본총계</div><div class="kpi-val" style="font-size:20px;color:var(--primary)">${won(totalEq)}</div></div>
-    <div class="card kpi"><div class="kpi-label">부채비율</div><div class="kpi-val">${totalEq ? (totalLiab / totalEq * 100).toFixed(0) : 0}<span class="unit">%</span></div></div>
+    <div class="card kpi"><div class="kpi-label">자산총계</div><div class="kpi-val" style="font-size:20px">${won(asset)}</div></div>
+    <div class="card kpi"><div class="kpi-label">부채총계</div><div class="kpi-val" style="font-size:20px;color:var(--danger)">${won(liab)}</div></div>
+    <div class="card kpi"><div class="kpi-label">자본총계</div><div class="kpi-val" style="font-size:20px;color:var(--primary)">${won(eq)}</div></div>
+    <div class="card kpi"><div class="kpi-label">부채비율</div><div class="kpi-val">${(liab / eq * 100).toFixed(0)}<span class="unit">%</span></div></div>
   </div>
   <div class="grid g-2" style="margin-top:18px">
     <div class="card fade">
-      <div class="card-h"><h3>자산</h3></div>
-      <div style="padding:12px 18px 0"><div class="edit-hint" style="margin:0">매출채권·재고자산은 다른 화면 데이터에서 자동 집계됩니다.</div></div>
+      <div class="card-h"><h3>자산</h3><span class="hint">2025-12-31 현재</span></div>
       <table class="tbl fi-tbl"><tbody>
-        ${row("현금및현금성자산", finN("cash", 130))}
-        ${row(`매출채권 <span class="t-muted" style="font-size:11px">(미수금 자동)</span>`, auto(ar))}
-        ${row(`재고자산 <span class="t-muted" style="font-size:11px">(재고 자동)</span>`, auto(inv))}
-        ${row("유형자산(설비 등)", finN("tangible", 130))}
-        ${row("기타자산", finN("otherAsset", 130))}
-        ${sum("자산총계", totalAsset)}
+        <tr><td colspan="2" class="t-strong" style="background:#f7f9ff;color:#2553d6">Ⅰ. 유동자산</td></tr>
+        ${assetRows}
+        ${sum("자산총계", asset)}
       </tbody></table>
     </div>
     <div class="card fade">
       <div class="card-h"><h3>부채 · 자본</h3></div>
-      <div style="padding:12px 18px 0"><div class="edit-hint" style="margin:0">매입채무는 매입처 잔액에서 자동, 이익잉여금은 대차 일치로 자동 계산됩니다.</div></div>
       <table class="tbl fi-tbl"><tbody>
-        ${row(`매입채무 <span class="t-muted" style="font-size:11px">(미지급금 자동)</span>`, auto(ap))}
-        ${row("단기차입금", finN("shortLoan", 130))}
-        ${row("기타부채", finN("otherLiab", 130))}
-        ${sum("부채총계", totalLiab)}
-        ${row("자본금", finN("capital", 130))}
-        ${row(`이익잉여금 <span class="t-muted" style="font-size:11px">(자동)</span>`, auto(retained))}
-        ${sum("자본총계", totalEq)}
+        <tr><td colspan="2" class="t-strong" style="background:#fff4f4;color:#b9292e">Ⅰ. 부채</td></tr>
+        ${liabRows}
+        ${sum("부채총계", liab)}
+        <tr><td colspan="2" class="t-strong" style="background:#f3fbf5;color:#147a3a">Ⅱ. 자본</td></tr>
+        ${row("자본금", f.capital, { bold: true })}
+        ${sum("자본총계", eq)}
       </tbody></table>
     </div>
   </div>
-  <div class="edit-hint" style="margin-top:14px;background:#f6ffed;border-color:#b7eb8f;color:#237804">✔ 자산총계 ${won(totalAsset)} = 부채+자본 ${won(totalLiab + totalEq)} · 대차평형 자동 일치</div>`;
+  <div class="edit-hint" style="margin-top:14px;background:#f6ffed;border-color:#b7eb8f;color:#237804">✔ 자산총계 ${won(asset)} = 부채 ${won(liab)} + 자본 ${won(eq)} · 대차평형 일치</div>`;
 }
 
 function glLedgerView() {
@@ -2029,7 +2021,15 @@ function costStatementView() {
   const f = DB.finance;
   const pof = (n, d) => (d ? n / d * 100 : 0).toFixed(1) + "%";
   const line = (label, v, o = {}) => `<tr><td style="padding-left:${(o.indent || 0) * 18 + 14}px" class="${o.bold ? "t-strong" : ""} ${o.sub ? "t-muted" : ""}">${label}</td><td class="num mono ${o.bold ? "t-strong" : ""}">${won(v)}</td></tr>`;
-  const mix = [{ type: "재료비", count: f.matCost }, { type: "노무비", count: f.laborCost }, { type: "경비", count: f.mfgExpense }];
+  const mixBars = [
+    { label: "재료비", val: f.matCost, color: "#3b6ef5" },
+    { label: "노무비", val: f.laborCost, color: "#7b3fe4" },
+    { label: "경비", val: f.mfgExpense, color: "#16a34a" },
+  ].map(m => `<div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:12.5px;font-weight:600;margin-bottom:6px">
+        <span>${m.label}</span><span class="t-muted">${won(m.val)} · ${(m.val / f.totalMfgCost * 100).toFixed(1)}%</span></div>
+      <div class="pbar" style="height:10px"><i style="width:${m.val / f.totalMfgCost * 100}%;background:${m.color}"></i></div>
+    </div>`).join("");
   return `
   <div class="grid g-4">
     <div class="card kpi"><div class="kpi-label">당기제품제조원가</div><div class="kpi-val" style="font-size:20px">${won(f.totalMfgCost)}</div></div>
@@ -2047,6 +2047,7 @@ function costStatementView() {
         ${line("기말원재료재고액", f.matClosing, { indent: 1, sub: true })}
         ${line("Ⅱ. 노무비 (급여)", f.laborCost, { bold: true })}
         ${line("Ⅲ. 경비", f.mfgExpense, { bold: true })}
+        ${(f.mfgExpItems || []).map(([k, v]) => line(k, v, { indent: 1, sub: true })).join("")}
         <tr class="fi-sum"><td class="t-strong">당기총제조비용</td><td class="num mono t-strong">${won(f.totalMfgCost)}</td></tr>
         <tr class="fi-sum"><td class="t-strong">당기제품제조원가</td><td class="num mono t-strong">${won(f.totalMfgCost)}</td></tr>
       </tbody></table>
