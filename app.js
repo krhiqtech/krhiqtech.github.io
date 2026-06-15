@@ -2095,11 +2095,35 @@ function financeAnalysisView() {
   </div>`;
 }
 
-Views.finance = () => subnav("finance", [["손익계산서", "손익계산서"], ["재무상태표", "재무상태표"], ["제조원가", "제조원가명세서"], ["총계정원장", "총계정원장"], ["분석", "정밀분석"]]) +
+function trialBalanceView() {
+  const t = DB.trialBalance || [];
+  const c = (v) => v ? won(v) : `<span class="t-muted">-</span>`;
+  const rows = t.map(r => {
+    const [a, db, ds, cs, cb, ind = 0, bold = false, total = false] = r;
+    return `<tr class="${total ? "fi-sum" : ""}">
+      <td style="padding-left:${ind * 16 + 14}px" class="${bold || total ? "t-strong" : ""} ${ind >= 2 ? "t-muted" : ""}">${a}</td>
+      <td class="num mono ${bold || total ? "t-strong" : ""}">${c(db)}</td>
+      <td class="num mono t-muted" style="font-size:12px">${c(ds)}</td>
+      <td class="num mono t-muted" style="font-size:12px">${c(cs)}</td>
+      <td class="num mono ${bold || total ? "t-strong" : ""}">${c(cb)}</td>
+    </tr>`;
+  }).join("");
+  return `
+  <div class="demo-banner">📄 ${DB.finance.period} <b>합계잔액시산표</b> — 세무신고 자료 기준 계정별 잔액·합계입니다.</div>
+  <div class="card fade">
+    <div class="card-h"><h3>합계잔액시산표</h3><span class="hint">단위: 원</span></div>
+    <table class="tbl fi-tbl">
+      <thead><tr><th>계정과목</th><th class="num">차변잔액</th><th class="num">차변합계</th><th class="num">대변합계</th><th class="num">대변잔액</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+Views.finance = () => subnav("finance", [["손익계산서", "손익계산서"], ["재무상태표", "재무상태표"], ["제조원가", "제조원가명세서"], ["시산표", "합계잔액시산표"], ["분석", "정밀분석"]]) +
   (SUB.finance === "손익계산서" ? incomeStatementView()
     : SUB.finance === "재무상태표" ? balanceSheetView()
     : SUB.finance === "제조원가" ? costStatementView()
-    : SUB.finance === "총계정원장" ? glLedgerView()
+    : SUB.finance === "시산표" ? trialBalanceView()
     : financeAnalysisView());
 
 /* =====================================================================
