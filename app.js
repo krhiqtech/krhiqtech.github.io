@@ -2054,7 +2054,7 @@ function costStatementView() {
     </div>
     <div class="card fade" style="align-self:start">
       <div class="card-h"><h3>제조원가 구성비</h3></div>
-      <div class="card-b">${chartHBar(mix)}</div>
+      <div class="card-b">${mixBars}</div>
     </div>
   </div>`;
 }
