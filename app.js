@@ -1078,13 +1078,31 @@ Views.production = () => {
     </tr>`).join("");
 
   const lineCards = Object.entries(lines).map(([name, v]) => {
-    const a = (v.prod / v.plan) * 100;
-    return `<div class="card" style="padding:16px 18px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <span class="t-strong">${name}</span>${statusBadge(a >= 100 ? "완료" : "진행")}</div>
-      <div class="pbar ${a >= 100 ? "ok" : a >= 60 ? "" : "warn"}" style="height:9px"><i style="width:${Math.min(a, 100)}%"></i></div>
-      <div style="display:flex;justify-content:space-between;margin-top:9px;font-size:12px" class="t-muted">
-        <span>실적 ${num(v.prod)} / 계획 ${num(v.plan)}</span><span class="t-strong">${a.toFixed(0)}%</span></div>
+    const a = v.plan ? (v.prod / v.plan) * 100 : 0;
+    const done = a >= 100;
+    const col = a >= 95 ? "var(--ok)" : a >= 70 ? "var(--primary)" : "var(--warn)";
+    const pcls = a >= 95 ? "ok" : a >= 70 ? "" : "warn";
+    const yld = v.prod ? (1 - v.defect / v.prod) * 100 : 100;
+    const icon = name.includes("압착") ? "🔩" : "🔧";
+    return `<div class="card" style="padding:18px 20px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+        <div style="display:flex;gap:10px;align-items:center">
+          <div style="width:40px;height:40px;border-radius:12px;background:var(--primary-l);display:grid;place-items:center;font-size:19px">${icon}</div>
+          <div><div style="font-weight:800;font-size:14.5px">${name}</div>
+            <div class="t-muted" style="font-size:11.5px;margin-top:1px">가동률</div></div>
+        </div>
+        <span class="badge ${done ? "b-ok" : "b-info"}">${done ? "완료" : "가동중"}</span>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:8px">
+        <span style="font-size:30px;font-weight:800;letter-spacing:-1px;color:${col}">${a.toFixed(0)}<span style="font-size:15px">%</span></span>
+        <span class="t-muted" style="font-size:12px">양품률 ${yld.toFixed(1)}%</span>
+      </div>
+      <div class="pbar ${pcls}" style="height:8px;margin:11px 0 13px"><i style="width:${Math.min(a, 100)}%"></i></div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center">
+        <div><div class="t-muted" style="font-size:11px">계획</div><div class="t-strong mono" style="font-size:13.5px">${num(v.plan)}</div></div>
+        <div><div class="t-muted" style="font-size:11px">실적</div><div class="t-strong mono" style="font-size:13.5px;color:var(--primary)">${num(v.prod)}</div></div>
+        <div><div class="t-muted" style="font-size:11px">불량</div><div class="t-strong mono" style="font-size:13.5px;color:var(--danger)">${num(v.defect)}</div></div>
+      </div>
     </div>`;
   }).join("");
 
@@ -1907,7 +1925,7 @@ function incomeStatementView() {
   const sum = (label, val) => `<tr class="fi-sum"><td class="t-strong">${label}</td><td class="num mono t-strong">${won(val)}</td></tr>`;
   return `
   <div class="grid g-4">
-    <div class="card kpi"><div class="kpi-label">매출액 (당월)</div><div class="kpi-val" style="font-size:21px">${won(f.sales)}</div></div>
+    <div class="card kpi"><div class="kpi-label">매출액</div><div class="kpi-val" style="font-size:21px">${won(f.sales)}</div></div>
     <div class="card kpi"><div class="kpi-label">영업이익</div><div class="kpi-val" style="font-size:21px;color:var(--ok)">${won(op)}</div><div class="kpi-delta up">영업이익률 ${opM.toFixed(1)}%</div></div>
     <div class="card kpi"><div class="kpi-label">당기순이익</div><div class="kpi-val" style="font-size:21px;color:var(--primary)">${won(net)}</div><div class="kpi-delta up">순이익률 ${netM.toFixed(1)}%</div></div>
     <div class="card kpi"><div class="kpi-label">매출총이익률</div><div class="kpi-val">${f.sales ? (gross / f.sales * 100).toFixed(1) : 0}<span class="unit">%</span></div></div>
@@ -2007,10 +2025,81 @@ function glLedgerView() {
   </div>`;
 }
 
-Views.finance = () => subnav("finance", [["손익계산서", "손익계산서"], ["재무상태표", "재무상태표"], ["총계정원장", "총계정원장"]]) +
+function costStatementView() {
+  const f = DB.finance;
+  const pof = (n, d) => (d ? n / d * 100 : 0).toFixed(1) + "%";
+  const line = (label, v, o = {}) => `<tr><td style="padding-left:${(o.indent || 0) * 18 + 14}px" class="${o.bold ? "t-strong" : ""} ${o.sub ? "t-muted" : ""}">${label}</td><td class="num mono ${o.bold ? "t-strong" : ""}">${won(v)}</td></tr>`;
+  const mix = [{ type: "재료비", count: f.matCost }, { type: "노무비", count: f.laborCost }, { type: "경비", count: f.mfgExpense }];
+  return `
+  <div class="grid g-4">
+    <div class="card kpi"><div class="kpi-label">당기제품제조원가</div><div class="kpi-val" style="font-size:20px">${won(f.totalMfgCost)}</div></div>
+    <div class="card kpi"><div class="kpi-label">재료비</div><div class="kpi-val" style="font-size:20px;color:var(--primary)">${won(f.matCost)}</div><div class="kpi-delta up">${pof(f.matCost, f.totalMfgCost)}</div></div>
+    <div class="card kpi"><div class="kpi-label">노무비</div><div class="kpi-val" style="font-size:20px">${won(f.laborCost)}</div><div class="kpi-delta up">${pof(f.laborCost, f.totalMfgCost)}</div></div>
+    <div class="card kpi"><div class="kpi-label">경비</div><div class="kpi-val" style="font-size:20px">${won(f.mfgExpense)}</div><div class="kpi-delta up">${pof(f.mfgExpense, f.totalMfgCost)}</div></div>
+  </div>
+  <div class="grid g-2-1" style="margin-top:18px">
+    <div class="card fade">
+      <div class="card-h"><h3>제조원가명세서 <span class="t-muted" style="font-size:12px;font-weight:600">· ${f.period}</span></h3></div>
+      <table class="tbl fi-tbl"><tbody>
+        ${line("Ⅰ. 원재료비", f.matCost, { bold: true })}
+        ${line("기초원재료재고액", 0, { indent: 1, sub: true })}
+        ${line("당기원재료매입액", f.matPurchase, { indent: 1, sub: true })}
+        ${line("기말원재료재고액", f.matClosing, { indent: 1, sub: true })}
+        ${line("Ⅱ. 노무비 (급여)", f.laborCost, { bold: true })}
+        ${line("Ⅲ. 경비", f.mfgExpense, { bold: true })}
+        <tr class="fi-sum"><td class="t-strong">당기총제조비용</td><td class="num mono t-strong">${won(f.totalMfgCost)}</td></tr>
+        <tr class="fi-sum"><td class="t-strong">당기제품제조원가</td><td class="num mono t-strong">${won(f.totalMfgCost)}</td></tr>
+      </tbody></table>
+    </div>
+    <div class="card fade" style="align-self:start">
+      <div class="card-h"><h3>제조원가 구성비</h3></div>
+      <div class="card-b">${chartHBar(mix)}</div>
+    </div>
+  </div>`;
+}
+
+function financeAnalysisView() {
+  const f = DB.finance;
+  const gross = f.sales - f.cogs, op = gross - f.sga, net = op + f.nonOpIncome - f.nonOpExpense - f.corpTax;
+  const asset = f.assetReal, liab = f.liabReal, eq = f.equityReal;
+  const r = {
+    gross: gross / f.sales * 100, op: op / f.sales * 100, net: net / f.sales * 100, cogs: f.cogs / f.sales * 100,
+    debt: liab / eq * 100, current: (f.cash + f.arReal + f.invReal) / liab * 100, equity: eq / asset * 100,
+  };
+  const card = (label, val, note, color) => `<div class="card" style="padding:16px 18px"><div class="t-muted" style="font-size:12.5px;font-weight:600">${label}</div><div style="font-size:23px;font-weight:800;color:${color};margin:4px 0 2px">${val}</div><div class="t-muted" style="font-size:11.5px">${note}</div></div>`;
+  return `
+  <div class="demo-banner">📑 ${f.period} — 세무신고 기준 실제 결산수치 분석</div>
+  <div class="sec-title"><span class="ic">💹</span>수익성</div>
+  <div class="grid g-4 fade">
+    ${card("매출총이익률", r.gross.toFixed(1) + "%", "매출 대비 총이익", "#2553d6")}
+    ${card("영업이익률", r.op.toFixed(1) + "%", "본업 수익성", "var(--ok)")}
+    ${card("순이익률", r.net.toFixed(1) + "%", "최종 수익성", "var(--ok)")}
+    ${card("매출원가율", r.cogs.toFixed(1) + "%", "낮을수록 좋음", "#b9292e")}
+  </div>
+  <div class="sec-title" style="margin-top:20px"><span class="ic">🛡️</span>안정성 · 결산 재무상태표</div>
+  <div class="grid g-4 fade">
+    ${card("부채비율", r.debt.toFixed(1) + "%", "100% 이하 우량", r.debt <= 100 ? "var(--ok)" : "var(--warn)")}
+    ${card("유동비율", r.current.toFixed(0) + "%", "단기지급능력", "var(--ok)")}
+    ${card("자기자본비율", r.equity.toFixed(1) + "%", "높을수록 안정", "var(--ok)")}
+    ${card("자산총계", won(asset), "부채 " + won(liab) + " / 자본 " + won(eq), "var(--ink)")}
+  </div>
+  <div class="card fade" style="margin-top:18px">
+    <div class="card-h"><h3>분석 코멘트</h3></div>
+    <div class="card-b" style="font-size:13px;line-height:1.85">
+      • <b>수익성</b>: 영업이익률 ${r.op.toFixed(1)}% · 순이익률 ${r.net.toFixed(1)}% — 매출원가율이 <b>${r.cogs.toFixed(1)}%</b>로 높아 원가절감이 수익성 개선의 핵심.<br>
+      • <b>원가구조</b>: 제조원가 중 재료비 ${(f.matCost / f.totalMfgCost * 100).toFixed(1)}% · 노무비 ${(f.laborCost / f.totalMfgCost * 100).toFixed(1)}% · 경비 ${(f.mfgExpense / f.totalMfgCost * 100).toFixed(1)}% → <b>재료비 비중이 가장 커</b> 원자재 단가관리가 마진에 직결.<br>
+      • <b>안정성</b>: 부채비율 ${r.debt.toFixed(1)}% · 유동비율 ${r.current.toFixed(0)}%로 재무안정성 양호.<br>
+      • <b>비유동자산 0원</b> — 설비를 자산으로 보유하지 않고 외주·임차 구조. <b>설비투자 시</b> 생산능력·원가경쟁력 동반 개선 여지 큼.
+    </div>
+  </div>`;
+}
+
+Views.finance = () => subnav("finance", [["손익계산서", "손익계산서"], ["재무상태표", "재무상태표"], ["제조원가", "제조원가명세서"], ["총계정원장", "총계정원장"], ["분석", "정밀분석"]]) +
   (SUB.finance === "손익계산서" ? incomeStatementView()
     : SUB.finance === "재무상태표" ? balanceSheetView()
-    : glLedgerView());
+    : SUB.finance === "제조원가" ? costStatementView()
+    : SUB.finance === "총계정원장" ? glLedgerView()
+    : financeAnalysisView());
 
 /* =====================================================================
  * 네비게이션 & 라우팅
